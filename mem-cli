@@ -1,0 +1,73 @@
+#!/bin/bash
+
+# --- CONFIGURATION ---
+API_URL="http://localhost:8000"
+
+# Check if Key is exported
+if [ -z "$DONTFORGET_SECRET_KEY" ]; then
+    echo -e "\033[0;31mError: DONTFORGET_SECRET_KEY is not set.\033[0m"
+    echo "Please export it in your shell config:"
+    echo "export DONTFORGET_SECRET_KEY='your-secret-password'"
+    exit 1
+fi
+
+API_KEY="$DONTFORGET_SECRET_KEY"
+
+# --- COLORS ---
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+# --- HELPER ---
+usage() {
+    echo -e "${BLUE}DontForget CLI${NC}"
+    echo "Usage:"
+    echo "  mem r \"text\"    -> Remember"
+    echo "  mem q \"query\"   -> Question"
+    exit 1
+}
+
+# --- LOGIC ---
+COMMAND=$1
+INPUT=$2
+
+if [ -z "$COMMAND" ]; then usage; fi
+
+case $COMMAND in
+    remember|save|r)
+        if [ -z "$INPUT" ]; then echo -e "${RED}Missing text.${NC}"; exit 1; fi
+        
+        echo -e "${BLUE}🧠 Saving...${NC}"
+        RESPONSE=$(curl -s -X POST "$API_URL/remember" \
+            -H "x-api-key: $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"text\": \"$INPUT\"}")
+            
+        STATUS=$(echo $RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin).get('status', 'error'))" 2>/dev/null)
+        
+        if [ "$STATUS" == "saved" ]; then
+            TAGS=$(echo $RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin).get('tags', ''))")
+            echo -e "${GREEN}✔ Saved!${NC} [Tags: $TAGS]"
+        else
+            echo -e "${RED}✘ Error:${NC} $RESPONSE"
+        fi
+        ;;
+
+    ask|remind|q)
+        if [ -z "$INPUT" ]; then echo -e "${RED}Missing question.${NC}"; exit 1; fi
+        
+        echo -e "${BLUE}🔍 Thinking...${NC}"
+        RESPONSE=$(curl -s -X POST "$API_URL/remind" \
+            -H "x-api-key: $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"question\": \"$INPUT\"}")
+
+        ANSWER=$(echo $RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin).get('answer', 'Error'))" 2>/dev/null)
+        
+        echo -e "\n${GREEN}$ANSWER${NC}\n"
+        ;;
+    *)
+        usage
+        ;;
+esac
