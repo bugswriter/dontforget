@@ -1,0 +1,17 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.idea/
+
+# Virtual environments
+.venv
+.env
+app.log
+agents.db
+aisys_cli.egg-info
+service_account.json
+key.json
