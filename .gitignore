@@ -16,3 +16,5 @@ aisys_cli.egg-info
 service_account.json
 key.json
 dontforget.db
+memory.db
+*.db

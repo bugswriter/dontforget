@@ -1,16 +1,22 @@
 #!/bin/bash
 
 # --- CONFIGURATION ---
-API_URL="http://localhost:8000"
+if [ -z "$DONTFORGET_API_URL" ]; then
+    echo -e "\033[0;31mError: DONTFORGET_API_URL is not set.\033[0m"
+    exit 1
+fi
+
 if [ -z "$DONTFORGET_SECRET_KEY" ]; then
     echo -e "\033[0;31mError: DONTFORGET_SECRET_KEY is not set.\033[0m"
     exit 1
 fi
+API_URL="$DONTFORGET_API_URL"
 API_KEY="$DONTFORGET_SECRET_KEY"
 
 # --- COLORS ---
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
@@ -31,13 +37,21 @@ case $COMMAND in
         fi
         
         echo -e "${BLUE}🧠 Saving...${NC}"
-        JSON_PAYLOAD=$(echo "$CONTENT" | python3 -c 'import json, sys; print(json.dumps({"text": sys.stdin.read().strip()}))')
-        RESPONSE=$(curl -s -X POST "$API_URL/remember" -H "x-api-key: $API_KEY" -H "Content-Type: application/json" -d "$JSON_PAYLOAD")
+        # Safe JSON creation
+        JSON_PAYLOAD=$(python3 -c "import json; print(json.dumps({'text': '''$CONTENT'''}))")
         
-        STATUS=$(echo $RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin).get('status', 'error'))" 2>/dev/null)
+        RESPONSE=$(curl -s -X POST "$API_URL/remember" \
+            -H "x-api-key: $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$JSON_PAYLOAD")
+        
+        STATUS=$(echo "$RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin).get('status', 'error'))" 2>/dev/null)
+        
         if [ "$STATUS" == "saved" ]; then
-            TAGS=$(echo $RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin).get('tags', ''))")
-            echo -e "${GREEN}✔ Saved!${NC} [Tags: $TAGS]"
+            # Parse list of tags
+            TAGS=$(echo "$RESPONSE" | python3 -c "import sys, json; print(', '.join(json.load(sys.stdin).get('tags', [])))" 2>/dev/null)
+            echo -e "${GREEN}✔ Saved!${NC}"
+            echo -e "${YELLOW}Tags:${NC} $TAGS"
         else
             echo -e "${RED}✘ Error:${NC} $RESPONSE"
         fi
@@ -47,22 +61,31 @@ case $COMMAND in
         if [ -z "$INPUT" ]; then echo -e "${RED}Missing query.${NC}"; exit 1; fi
         echo -e "${BLUE}🔍 Thinking...${NC}"
         
-        JSON_PAYLOAD=$(echo "$INPUT" | python3 -c 'import json, sys; print(json.dumps({"question": sys.stdin.read().strip()}))')
-        RESPONSE=$(curl -s -X POST "$API_URL/remind" -H "x-api-key: $API_KEY" -H "Content-Type: application/json" -d "$JSON_PAYLOAD")
-        ANSWER=$(echo $RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin).get('answer', 'Error'))" 2>/dev/null)
-        echo -e "\n${GREEN}$ANSWER${NC}\n"
-        ;;
+        JSON_PAYLOAD=$(python3 -c "import json; print(json.dumps({'question': '''$INPUT'''}))")
+        
+        RESPONSE=$(curl -s -X POST "$API_URL/remind" \
+            -H "x-api-key: $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$JSON_PAYLOAD")
 
-    forget|delete|d)
-        if [ -z "$INPUT" ]; then echo -e "${RED}Missing item to delete.${NC}"; exit 1; fi
-        echo -e "${RED}🗑️  Processing deletion...${NC}"
+        ANSWER=$(echo "$RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin).get('answer', 'Server Error'))" 2>/dev/null)
+        STATS=$(echo "$RESPONSE" | python3 -c "import sys, json; d=json.load(sys.stdin).get('stats', {}); print(f'{d.get(\"found\",0)} records | {d.get(\"tokens\",0)} tokens')" 2>/dev/null)
         
-        # We construct a natural language request for the Agent
-        QUERY="Delete the memory about: $INPUT"
-        JSON_PAYLOAD=$(echo "$QUERY" | python3 -c 'import json, sys; print(json.dumps({"question": sys.stdin.read().strip()}))')
+        echo -e "\n${GREEN}$ANSWER${NC}\n"
+        echo -e "${BLUE}--------------------------------${NC}"
+        echo -e "${YELLOW}📊 Stats: $STATS${NC}\n"
+        ;;
+    
+    delete|d)
+        if [ -z "$INPUT" ]; then echo -e "${RED}Missing query.${NC}"; exit 1; fi
         
-        RESPONSE=$(curl -s -X POST "$API_URL/remind" -H "x-api-key: $API_KEY" -H "Content-Type: application/json" -d "$JSON_PAYLOAD")
-        ANSWER=$(echo $RESPONSE | python3 -c "import sys, json; print(json.load(sys.stdin).get('answer', 'Error'))" 2>/dev/null)
+        JSON_PAYLOAD=$(python3 -c "import json; print(json.dumps({'question': '''$INPUT'''}))")
+        RESPONSE=$(curl -s -X POST "$API_URL/delete" \
+            -H "x-api-key: $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$JSON_PAYLOAD")
+        
+        ANSWER=$(echo "$RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin).get('answer', 'Error'))" 2>/dev/null)
         echo -e "\n${GREEN}$ANSWER${NC}\n"
         ;;
         
