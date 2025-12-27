@@ -49,10 +49,10 @@ uv run main.py
 
 1. Copy the `mem` script to `/usr/local/bin/mem`.
 2. Make it executable: `chmod +x /usr/local/bin/mem`.
-3. Add your secret key to your shell config (`~/.bashrc` or `~/.zshrc`):
+3. Add your secret key and API URL to your shell config (`~/.bashrc` or `~/.zshrc`):
 ```bash
 export DONTFORGET_SECRET_KEY="your_secret_password"
-
+export DONTFORGET_API_URL="0.0.0.0:8000" # By default
 ```
 
 
